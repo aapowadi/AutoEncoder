@@ -18,11 +18,11 @@ decoder_depth: 2
 # Train
 epochs: 100
 opt: adamw
-blr: 0.0001 # this is base_lr = 1e-4, lr = base_lr * batch_size / 256
+blr: 0.1 # this is base_lr = 1e-4, lr = base_lr * batch_size / 256
 warmup_lr: 0.000001 # 1e-6
 min_lr: 0.
 warmup_epochs: 20
-batch_size: 2
+batch_size: 32
 hflip: 0.5
 loss_on_unmasked: False
 fp32_output_adapters: rgbdrone
@@ -35,4 +35,4 @@ log_wandb: False # Set to True to log to Weights & Biases
 wandb_project: 'multimae-pretrain'
 wandb_entity: null # Change if needed
 wandb_run_name: multimae-rgbdrone+thermal+100e
-output_dir: 'output/pretrain/multimae-rgbdrone+thermal+_100e' # Change directory if needed
+output_dir: 'output/lr_0.1_adm_rgbdrone_100e' # Change directory if needed

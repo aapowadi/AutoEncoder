@@ -12,13 +12,13 @@ def get_device():
     return device
 
 
-def save_decoded_image(img, epoch):
+def save_decoded_image(output_dir, img, epoch):
     img = img.view(img.size(0), 3, 224, 224)
-    save_image(img, './Training_output/cnv_ae_image{}.png'.format(epoch))
+    save_image(img, output_dir+'/re{}.png'.format(epoch))
 
-def save_og_image(img, epoch):
+def save_og_image(output_dir, img, epoch):
     img = img.view(img.size(0), 3, 224, 224)
-    save_image(img, './Training_output/cnv_og_image{}.png'.format(epoch))
+    save_image(img, output_dir+'/og{}.png'.format(epoch))
 
 def Average(lst):
     return sum(lst) / len(lst)

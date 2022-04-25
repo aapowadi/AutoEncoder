@@ -2,11 +2,11 @@
 
 # Press ⌃R to execute it or replace it with your code.
 # Press Double ⇧ to search everywhere for classes, files, tool windows, actions, and settings.
+import wandb
 import torch
 from torchvision import datasets
 from torchvision import transforms
 import matplotlib.pyplot as plt
-from PIL import Image
 import argparse
 import data_constants
 import yaml
@@ -15,8 +15,9 @@ from utils import get_device
 from utils import save_decoded_image
 from utils import save_og_image
 from utils import Average
+from save_results import save_csv
 import os
-
+import pathlib
 
 def get_args():
     config_parser = parser = argparse.ArgumentParser(description='Training Config', add_help=False)
@@ -123,11 +124,11 @@ def get_args():
                         help='Training interpolation (random, bilinear, bicubic) (default: %(default)s)')
 
     # Dataset parameters
-    parser.add_argument('--data_path', default=data_constants.IMAGENET_TRAIN_PATH, type=str, help='dataset path')
+    parser.add_argument('--data_path', default='../Processed/rgbdrone', type=str, help='dataset path')
     parser.add_argument('--imagenet_default_mean_and_std', default=True, action='store_true')
 
     # Misc.
-    parser.add_argument('--output_dir', default='',
+    parser.add_argument('--output_dir', default='output/sweep_rgbdrone_100e',
                         help='Path where to save, empty for no saving')
     parser.add_argument('--device', default='cuda',
                         help='Device to use for training / testing')
@@ -184,6 +185,8 @@ def get_args():
 
 
 def main(opts):
+    # Create a folder for the output
+    pathlib.Path(opts.output_dir).mkdir(parents=True, exist_ok=True)
     # Transforms images to a PyTorch Tensor
     # tensor_transform = transforms.ToTensor()
     # image transformations
@@ -201,7 +204,7 @@ def main(opts):
     # DataLoader is used to load the dataset
     # for training
     loader = torch.utils.data.DataLoader(dataset=dataset,
-                                         batch_size=32,
+                                         batch_size=opts.batch_size,
                                          shuffle=True)
     # Model Initialization
     model = ConvAutoEncoder()
@@ -211,8 +214,6 @@ def main(opts):
     print(device)
     # load the neural network onto the device
     model.to(device)
-    if not os.path.exists("Training_output"):
-        os.makedirs("Training_output")
     # train the network
     train(loader, model, opts.epochs, device)
 
@@ -220,16 +221,15 @@ def main(opts):
 def train(loader, model, epochs, device):
     # Validation using MSE Loss function
     loss_function = torch.nn.MSELoss()
-
+    #opts.lr = opts.blr * opts.batch_size / 256
+    opts.lr = opts.blr
     # Using an Adam Optimizer with lr = 0.1
     optimizer = torch.optim.Adam(model.parameters(),
-                                 lr=0.001,
-                                 weight_decay=1e-8)
-
+                                 lr=opts.blr)
     outputs = []
     losses = []
     train_dict = {}
-    for epoch in range(epochs):
+    for epoch in range(config["epochs"]):
         ep_losses = []
         for (image, _) in loader:
             # Reshaping the image to (-1, 784)
@@ -255,22 +255,25 @@ def train(loader, model, epochs, device):
                 testimg = image[0].unsqueeze(0)
                 testimg = testimg.to(device)
                 test_reconst = model(testimg, False)
-                save_decoded_image(test_reconst.cpu(), epoch)
-                save_og_image(testimg,epoch)
+                save_decoded_image(opts.output_dir,test_reconst.cpu(), epoch)
+                save_og_image(opts.output_dir,testimg,epoch)
         avg_loss = Average(ep_losses)
         avg_loss = avg_loss.cpu().detach().numpy()
+        wandb.log({"loss": loss})
+
+        # Optional
+        wandb.watch(model)
         losses.append(avg_loss)
+        # Save the results
+        save_csv(opts.output_dir, epoch, avg_loss)
         print(f"Epoch {epoch}: Loss is {avg_loss}")
-        outputs.append((epochs, image, reconstructed))
 
     # Defining the Plot Style
+    plt.plot(losses)
     plt.style.use('fivethirtyeight')
     plt.xlabel('Iterations')
     plt.ylabel('Loss')
-
-    # Plotting the last 100 values
-    plt.plot(losses)
-    plt.savefig('Training_output/lossplot.png')
+    plt.savefig(opts.output_dir+'/lossplot.png')
 
     # for i, item in enumerate(image):
     #     # Reshape the array for plotting
@@ -287,6 +290,9 @@ def train(loader, model, epochs, device):
 # Press the green button in the gutter to run the script.
 if __name__ == '__main__':
     opts = get_args()
-    main(opts)
+    wandb.init(config=opts, project="AE", entity="plantscience")
+    # Access all hyperparameter values through wandb.config
+    config = wandb.config
+    main(config)
 
 # See PyCharm help at https://www.jetbrains.com/help/pycharm/
